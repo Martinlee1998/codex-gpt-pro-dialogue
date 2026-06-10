@@ -1,6 +1,6 @@
-﻿---
+---
 name: codex-gpt-pro-dialogue
-description: Use when the user wants Codex to operate their logged-in Chrome ChatGPT/GPT Pro conversation as an English-first research-advice channel: connect, send the user's custom prompt, wait, monitor, extract, and summarize the answer while preserving strict project claim boundaries.
+description: Use when the user wants Codex to operate their logged-in ChatGPT/GPT Pro conversation as a research-advice channel: connect, optionally upload a sanitized evidence bundle, send the user's custom prompt, wait without interrupting active generation, monitor, extract, and summarize the answer while preserving strict project claim boundaries.
 ---
 
 # Codex GPT Pro Dialogue
@@ -11,6 +11,7 @@ Use this skill when the user asks Codex to operate Chrome/ChatGPT/GPT Pro as an 
 
 - Continue an existing ChatGPT/GPT Pro conversation in Chrome.
 - Send the user's custom research prompt to GPT Pro, using English by default when Codex drafts the wording.
+- Upload a sanitized evidence bundle for GPT Pro to review when the user asks for file-backed analysis.
 - Ask GPT Pro for project critique, literature review, research-gap analysis, route selection, or new idea generation.
 - Wait through long GPT Pro reasoning/search runs without interrupting them.
 - Extract and summarize the completed answer while keeping the original tab available.
@@ -28,9 +29,10 @@ Codex should handle the chain:
 1. Gather and compress local context when needed.
 2. Connect to the user's logged-in Chrome session.
 3. Claim the correct ChatGPT tab.
-4. Send the prompt the user wants, with only minimal safety or clarity additions when appropriate.
-5. Wait and monitor until GPT Pro completes.
-6. Extract the result and summarize it for the user.
+4. Upload an evidence bundle if the user requested file-backed review.
+5. Send the prompt the user wants, with only minimal safety or clarity additions when appropriate.
+6. Wait and monitor until GPT Pro completes.
+7. Extract the result and summarize it for the user.
 
 When the user gives only a high-level instruction, Codex may draft a one-off prompt for that exact request. Keep it task-specific and do not rely on reusable templates.
 
@@ -44,6 +46,53 @@ Before sending any prompt:
 2. Check the page is idle: no active `stop-button`, no unfinished `Pro thinking`, and no `organizing answer`, unless the user explicitly wants to wait.
 3. If the previous answer is still running, wait unless the user explicitly asks to stop or replace it.
 4. Do not reload a ChatGPT conversation tab unless the user requests it; reloading can lose UI state.
+
+## Evidence Bundle Uploads
+
+Use this section when the user asks Codex to upload files or a compact evidence bundle for GPT Pro analysis.
+
+Do not hard-code local paths, usernames, project names, browser window titles, run IDs, model IDs, operating-system language, or one machine's directory layout. Discover them from the current task and use placeholders in reusable notes, such as `<ABSOLUTE_BUNDLE_PATH>`, `<CHAT_URL>`, `<VISIBLE_FILE_DIALOG_TITLE>`, and `<PROJECT_LEDGER_PATH>`.
+
+Before uploading:
+
+1. Build a compact bundle from an explicit whitelist, not the full project tree.
+2. Include only the current blocker, status/theory or claim-boundary docs, key summaries/metrics, relevant scripts, and reproduction notes needed for the review.
+3. Compute and record the absolute bundle path valid on the current machine, entry count, byte size, and SHA256.
+4. Scan for likely secrets, API keys, passwords, credentials, suspicious filenames, and unrelated personal data.
+5. Write a short prompt telling GPT Pro which files to read, what repeated suggestions to avoid, the exact question to answer, and the claim boundaries to preserve.
+
+Browser upload flow:
+
+1. Open or reclaim the target ChatGPT/GPT Pro tab.
+2. Open the composer attachment menu.
+3. Try the visible add-file item or the shortcut shown by the current UI.
+4. If browser automation exposes a `filechooser` event, try setting `<ABSOLUTE_BUNDLE_PATH>` through automation.
+5. If `fileChooser.setFiles(...)` fails with `Not allowed`, treat this as an extension/browser permission boundary, not a path error.
+6. If the operating-system file picker is visible to the user but not to browser automation, use GUI automation only as a fallback:
+   - copy `<ABSOLUTE_BUNDLE_PATH>` to the system clipboard;
+   - activate the visible file picker using the current OS/window manager;
+   - focus the filename/path field using the current OS convention;
+   - paste the absolute path and confirm;
+   - return to ChatGPT and confirm the attachment chip or filename appears.
+
+Platform examples are templates only:
+
+- Windows: PowerShell can use `System.Windows.Forms.Clipboard`, `WScript.Shell.AppActivate(<VISIBLE_FILE_DIALOG_TITLE>)`, and SendKeys. Replace all placeholders; do not assume English dialog titles or a fixed shortcut.
+- macOS: copy the absolute path, activate the file picker, use the OS path-entry convention such as `Cmd+Shift+G` when available, paste, and confirm.
+- Linux desktop: copy the absolute path, activate the file picker, use the dialog's path-entry shortcut such as `Ctrl+L` when available, paste, and confirm.
+
+Before sending:
+
+1. Confirm the composer shows the uploaded filename.
+2. Confirm the send button is enabled.
+3. Ask GPT Pro to explicitly state whether it can read the attachment and whether prior advice changes after reading it.
+4. Ask GPT Pro to identify missing files rather than pretending to have read them.
+
+After the response:
+
+1. Save a concise response summary in the current workspace only if the task calls for durable records.
+2. If the project has a status ledger, update it only when the user's current instructions allow it.
+3. Do not write upload workflow notes or skill-maintenance notes into a project status ledger unless the user explicitly requests that.
 
 ## Prompt Handling
 
@@ -72,7 +121,8 @@ Treat GPT Pro output as external advice, not verified fact. If it cites literatu
 
 Respect the user's waiting preference.
 
-- If the user says to wait indefinitely or not stop, do not press `stop-button`.
+- Once GPT Pro has started generating a response, do not press `stop-button`, stop responding, cancel, reload, or otherwise terminate generation unless the user explicitly reverses this rule in the current conversation.
+- If the user says to wait indefinitely or not stop, treat that as a strict restriction.
 - Poll the page periodically and report short status updates.
 - Typical states:
   - `Pro thinking`: still thinking/searching.
